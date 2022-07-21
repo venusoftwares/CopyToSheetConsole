@@ -35,7 +35,7 @@ namespace CopyToSheet
                     .CreateScoped(Scopes);
             }
             string filterDateString = "";
-            string filterCopyColumn = "y";
+            string filterCopyColumn = "Yes";
          
 
             // the date input is entered here manually
@@ -73,7 +73,7 @@ namespace CopyToSheet
         static void ReadAndUpdateEntries(string filterDateString, string filterCopyColumn)
         { 
             var range = $"{sheet}!A:Z";
-            var range2 = $"{sheet2}!A:Z";
+            var range2 = $"{sheet2}!A:D";
             string moveYesOrNo = "";
             var valueRange2 = new ValueRange(); 
             SpreadsheetsResource.ValuesResource.GetRequest request = service.Spreadsheets.Values.Get(SourceSpreadsheetId, range); 
@@ -89,7 +89,9 @@ namespace CopyToSheet
 
             if (values != null && values.Count > 0)
             {
-                
+                string[] ignoreStringItems = ignoreColumn.Split(',');
+
+
                 List<int> ignoreColumns = new List<int>();
                 List<FilterModel> filterColumns = new List<FilterModel>();
                 int k = 0;
@@ -99,7 +101,7 @@ namespace CopyToSheet
                     {
                         for (int i = 0; i < row.Count; i++)
                         {
-                            if (ignoreColumn.Contains(row[i].ToString()))
+                            if (ignoreStringItems.Any(x=>x == row[i].ToString()))
                             {
                                 ignoreColumns.Add(i);  
                             }
@@ -122,11 +124,11 @@ namespace CopyToSheet
                         {
                             for(int j = 0; j < list.Count; j++)
                             {
-                                if (!string.IsNullOrEmpty(filterDateString) && list[j].ToString().ToLower() == "date")
+                                if (!string.IsNullOrEmpty(filterDateString) && list[j].ToString().ToLower() == "submitted on")
                                 {
                                     filterColumns.Add(new FilterModel { index = j, indexValue = list[j].ToString() });
                                 }
-                                if (list[j].ToString().ToLower() == "copy")
+                                if (list[j].ToString().ToLower() == "Would you like us to use your name when we contact your property")
                                 {
                                     //if (filterCopyColumn.ToLower() == "y" || filterCopyColumn.ToLower() == "n")
                                     //{
@@ -146,21 +148,24 @@ namespace CopyToSheet
                     } 
                     k++;
                 }
-                if (filterColumns.Any(x => x.indexValue == "Date"))
+                if (filterColumns.Any(x => x.indexValue == "Submitted On"))
                 {
-                    var itemDefault = filterColumns.Where(x => x.indexValue == "Date").Select(x => x.index).FirstOrDefault();
+                    var itemDefault = filterColumns.Where(x => x.indexValue == "Submitted On").Select(x => x.index).FirstOrDefault();
                     foreach (var item in recordRows)
                     {
                         DateTime inputDate = Convert.ToDateTime(filterDateString.Replace('/','-'));
-                        string[] strings = item[itemDefault].ToString().Split('-');
-                        DateTime dateTime = new DateTime(Convert.ToInt32(strings[2]), Convert.ToInt32(strings[1]), Convert.ToInt32(strings[0]));
-                        if (strings.Length > 0)
+                        if(!string.IsNullOrWhiteSpace(item[itemDefault].ToString())) 
                         {
-                            if (inputDate <= dateTime)
+                            string[] strings = item[itemDefault].ToString().Split('/');
+                            DateTime dateTime = new DateTime(Convert.ToInt32(strings[2].Substring(0, 4)), Convert.ToInt32(strings[0]), Convert.ToInt32(strings[1]));
+                            if (strings.Length > 0)
                             {
-                                filterRecords.Add(item);
+                                if (inputDate <= dateTime)
+                                {
+                                    filterRecords.Add(item);
+                                }
                             }
-                        }
+                        } 
                     } 
                 }
                 else
@@ -168,9 +173,9 @@ namespace CopyToSheet
                     filterRecords = recordRows;
                 }
 
-                if (filterColumns.Any(x => x.indexValue == "Copy"))
+                if (filterColumns.Any(x => x.indexValue == "Would you like us to use your name when we contact your property"))
                 {
-                    var itemDefault = filterColumns.Where(x => x.indexValue == "Copy").Select(x => x.index).FirstOrDefault();
+                    var itemDefault = filterColumns.Where(x => x.indexValue == "Would you like us to use your name when we contact your property").Select(x => x.index).FirstOrDefault();
                     foreach (var item in filterRecords)
                     { 
                         if (item[itemDefault].ToString().ToLower() == filterCopyColumn.ToLower())
@@ -232,7 +237,7 @@ namespace CopyToSheet
         // to delete the old data in the sheet
         static void DeleteEntry()
         {
-            var range = $"{sheet2}!A:Z";
+            var range = $"{sheet2}!A:D";
             var requestBody = new ClearValuesRequest();
 
             var deleteRequest = service.Spreadsheets.Values.Clear(requestBody, DestinationSpreadsheetId, range);
