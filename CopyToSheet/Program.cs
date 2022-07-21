@@ -18,7 +18,8 @@ namespace CopyToSheet
     { 
         static readonly string[] Scopes = { SheetsService.Scope.Spreadsheets };
         static readonly string ApplicationName = ConfigurationManager.AppSettings["ApplicationName"].ToString();
-        static readonly string SpreadsheetId = ConfigurationManager.AppSettings["SpreadsheetId"].ToString();
+        static readonly string SourceSpreadsheetId = ConfigurationManager.AppSettings["SSpreadsheetId"].ToString();
+        static readonly string DestinationSpreadsheetId = ConfigurationManager.AppSettings["DSpreadsheetId"].ToString();
         static readonly string sheet = ConfigurationManager.AppSettings["SourceSheet"].ToString();
         static readonly string sheet2 = ConfigurationManager.AppSettings["DestinationSheet"].ToString();
         static readonly string credentialJsonName = ConfigurationManager.AppSettings["CredentialJsonName"].ToString();
@@ -34,22 +35,20 @@ namespace CopyToSheet
                     .CreateScoped(Scopes);
             }
             string filterDateString = "";
-            string filterCopyColumn = "";
-            string moveYesOrNo = "";
+            string filterCopyColumn = "y";
+         
 
             // the date input is entered here manually
-            Console.WriteLine("Enter the date yyyy/MM/dd ex: 2022-12-30");
+            Console.WriteLine("Enter the date from when you want to copy the records (date format: yyyy/mm/dd. eg: 2022/12/30):");
             filterDateString = Console.ReadLine();
             Console.WriteLine("------------------");
 
-            // the yes or no input is entered here manually
-            Console.WriteLine("Filter y or n");
-            filterCopyColumn = Console.ReadLine();
-            Console.WriteLine("------------------");
+            //// the yes or no input is entered here manually
+            //Console.WriteLine("Filter y or n");
+            //filterCopyColumn = Console.ReadLine();
+            //Console.WriteLine("------------------");
 
-            // the copyToSheet decision input is entered here manually
-            Console.WriteLine("Do you want to move the file y or n");
-            moveYesOrNo = Console.ReadLine();
+           
 
 
             // Create Google Sheets API service.
@@ -59,18 +58,9 @@ namespace CopyToSheet
                 ApplicationName = ApplicationName,
             });
 
-            if(!string.IsNullOrWhiteSpace(moveYesOrNo) )
-            { 
-                if(moveYesOrNo.ToLower() == "y" || moveYesOrNo.ToLower() == "yes")
-                {
-                    DeleteEntry();
-                    //CreateEntry();
-                    ReadAndUpdateEntries(filterDateString, filterCopyColumn);
-                }
-            }
+            ReadAndUpdateEntries(filterDateString, filterCopyColumn);
 
-
-            Console.WriteLine("Do you want to continue this one y or n");
+            Console.WriteLine("Do you want to continue the process? (Y/N)");
             string re = Console.ReadLine();
             if (re == "y")
             {
@@ -84,8 +74,9 @@ namespace CopyToSheet
         { 
             var range = $"{sheet}!A:Z";
             var range2 = $"{sheet2}!A:Z";
+            string moveYesOrNo = "";
             var valueRange2 = new ValueRange(); 
-            SpreadsheetsResource.ValuesResource.GetRequest request = service.Spreadsheets.Values.Get(SpreadsheetId, range); 
+            SpreadsheetsResource.ValuesResource.GetRequest request = service.Spreadsheets.Values.Get(SourceSpreadsheetId, range); 
             var response = request.Execute();
 
 
@@ -160,7 +151,7 @@ namespace CopyToSheet
                     var itemDefault = filterColumns.Where(x => x.indexValue == "Date").Select(x => x.index).FirstOrDefault();
                     foreach (var item in recordRows)
                     {
-                        DateTime inputDate = Convert.ToDateTime(filterDateString);
+                        DateTime inputDate = Convert.ToDateTime(filterDateString.Replace('/','-'));
                         string[] strings = item[itemDefault].ToString().Split('-');
                         DateTime dateTime = new DateTime(Convert.ToInt32(strings[2]), Convert.ToInt32(strings[1]), Convert.ToInt32(strings[0]));
                         if (strings.Length > 0)
@@ -196,12 +187,24 @@ namespace CopyToSheet
                 recordHeader.AddRange(filterRecords);
 
                 Console.WriteLine(JsonConvert.SerializeObject(recordHeader));
+                // the copyToSheet decision input is entered here manually
+                Console.WriteLine($"{filterRecords.Count()} records will be moved. Are you sure to continue? (Y/N)");
+                moveYesOrNo = Console.ReadLine();
+                if (!string.IsNullOrWhiteSpace(moveYesOrNo))
+                {
+                    if (moveYesOrNo.ToLower() == "y" || moveYesOrNo.ToLower() == "yes")
+                    {
+                        DeleteEntry();
+                        //CreateEntry();
 
-                valueRange2.Values = recordHeader; 
-                var appendRequest = service.Spreadsheets.Values.Append(valueRange2, SpreadsheetId, range2);
-                appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
-                var appendReponse = appendRequest.Execute();
+                        valueRange2.Values = recordHeader;
+                        var appendRequest = service.Spreadsheets.Values.Append(valueRange2, DestinationSpreadsheetId, range2);
+                        appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
+                        var appendReponse = appendRequest.Execute();
+                    }
+                }
 
+               
             }
             else
             {
@@ -221,7 +224,7 @@ namespace CopyToSheet
             //var oblist = new List<object>() { };
             //valueRange.Values = new List<IList<object>> { oblist };
 
-            var updateRequest = service.Spreadsheets.Values.Update(valueRange, SpreadsheetId, range);
+            var updateRequest = service.Spreadsheets.Values.Update(valueRange, DestinationSpreadsheetId, range);
             updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
             var updateResponse = updateRequest.Execute();
         }
@@ -232,7 +235,7 @@ namespace CopyToSheet
             var range = $"{sheet2}!A:Z";
             var requestBody = new ClearValuesRequest();
 
-            var deleteRequest = service.Spreadsheets.Values.Clear(requestBody, SpreadsheetId, range);
+            var deleteRequest = service.Spreadsheets.Values.Clear(requestBody, DestinationSpreadsheetId, range);
             var deleteReponse = deleteRequest.Execute();
         }
 
