@@ -60,12 +60,12 @@ namespace CopyToSheet
 
             ReadAndUpdateEntries(filterDateString, filterCopyColumn);
 
-            Console.WriteLine("Do you want to continue the process? (Y/N)");
-            string re = Console.ReadLine();
-            if (re == "y")
-            {
-                Program.Main(new string[] { });
-            }
+            //Console.WriteLine("Do you want to continue the process? (Y/N)");
+            //string re = Console.ReadLine();
+            //if (re == "y")
+            //{
+            //    Program.Main(new string[] { });
+            //}
 
         }
 
@@ -128,7 +128,7 @@ namespace CopyToSheet
                                 {
                                     filterColumns.Add(new FilterModel { index = j, indexValue = list[j].ToString() });
                                 }
-                                if (list[j].ToString().ToLower() == "Would you like us to use your name when we contact your property")
+                                if (list[j].ToString().ToLower() == "would you like us to use your name when we contact your property")
                                 {
                                     //if (filterCopyColumn.ToLower() == "y" || filterCopyColumn.ToLower() == "n")
                                     //{
@@ -180,8 +180,9 @@ namespace CopyToSheet
                     { 
                         if (item[itemDefault].ToString().ToLower() == filterCopyColumn.ToLower())
                         {
-                            if(item[itemDefault].ToString().ToLower() == "y")
+                            if(item[itemDefault].ToString().ToLower() == "yes" || item[itemDefault].ToString().ToLower() == "y")
                             {
+                                item[itemDefault] = "";
                                 filterCopyRecords.Add(item);
                             } 
                         }                        
@@ -191,7 +192,7 @@ namespace CopyToSheet
 
                 recordHeader.AddRange(filterRecords);
 
-                Console.WriteLine(JsonConvert.SerializeObject(recordHeader));
+                // Console.WriteLine(JsonConvert.SerializeObject(recordHeader));
                 // the copyToSheet decision input is entered here manually
                 Console.WriteLine($"{filterRecords.Count()} records will be moved. Are you sure to continue? (Y/N)");
                 moveYesOrNo = Console.ReadLine();
@@ -199,10 +200,13 @@ namespace CopyToSheet
                 {
                     if (moveYesOrNo.ToLower() == "y" || moveYesOrNo.ToLower() == "yes")
                     {
-                        DeleteEntry();
+                        //DeleteEntry();
                         //CreateEntry();
-
-                        valueRange2.Values = recordHeader;
+                        var rangeList = DeleteRows(filterDateString);
+                        valueRange2.Values = filterRecords;
+                        var minRange = rangeList.Min();
+                        var maxRange = minRange + valueRange2.Values.Count();
+                        range2 = $"{sheet2}!A{minRange}:D{maxRange}";
                         var appendRequest = service.Spreadsheets.Values.Append(valueRange2, DestinationSpreadsheetId, range2);
                         appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
                         var appendReponse = appendRequest.Execute();
@@ -216,6 +220,54 @@ namespace CopyToSheet
                 Console.WriteLine("No data found.");
             }
         }
+
+        private static List<int> DeleteRows(string filterDateString)
+        {
+            var range2 = $"{sheet2}!A:D";
+            SpreadsheetsResource.ValuesResource.GetRequest request = service.Spreadsheets.Values.Get(DestinationSpreadsheetId, range2);
+            var response = request.Execute();
+            IList<IList<object>> values = response.Values;
+            List<int> ranges = new List<int>();
+            int i = 0;
+            foreach (var row in values)
+            {  
+                if(i>0)
+                {
+                    if(row.Count() >0)
+                    {
+                        DateTime inputDate = Convert.ToDateTime(filterDateString.Replace('/', '-'));
+                        if (!string.IsNullOrWhiteSpace(row[0].ToString()))
+                        {
+                            string[] strings = row[0].ToString().Split('/');
+                            DateTime dateTime = new DateTime(Convert.ToInt32(strings[2].Substring(0, 4)), Convert.ToInt32(strings[0]), Convert.ToInt32(strings[1]));
+                            if (strings.Length > 0)
+                            {
+                                if (inputDate <= dateTime)
+                                {
+                                    ranges.Add(i + 1);
+                                }
+                            }
+                        } 
+                    } 
+                    else
+                    {
+                        ranges.Add(i + 1);
+                    }
+                } 
+                i++;
+            }
+            if(ranges.Count == 0)
+            {
+                ranges.Add(values.Count());
+            }
+             
+            var range = ranges.Count() >0 ? $"{sheet2}!A{ranges.Min()}:D{ranges.Max()}" : $"{sheet2}!A:D";
+            var requestBody = new ClearValuesRequest();
+            var deleteRequest = service.Spreadsheets.Values.Clear(requestBody, DestinationSpreadsheetId, range);
+            var deleteReponse = deleteRequest.Execute();
+
+            return ranges;
+        } 
 
         // an alternate reference to update data 
         static void UpdateEntry()
