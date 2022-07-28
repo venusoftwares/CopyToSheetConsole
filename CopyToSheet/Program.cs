@@ -212,8 +212,6 @@ namespace CopyToSheet
                         var appendReponse = appendRequest.Execute();
                     }
                 }
-
-               
             }
             else
             {
